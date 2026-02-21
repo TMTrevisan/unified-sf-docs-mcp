@@ -182,6 +182,16 @@ async function main() {
 }
 
 // Only start the server if run directly (not if imported by Smithery analyzer)
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+let isMainModule = false;
+try {
+    if (import.meta && import.meta.url) {
+        isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
+    }
+} catch (e) {
+    // Ignore in CJS environments
+}
+
+if (isMainModule || process.env.NODE_ENV !== "test") {
+    // If we're not running in a test or static analysis environment, boot the server
     main().catch(console.error);
 }
