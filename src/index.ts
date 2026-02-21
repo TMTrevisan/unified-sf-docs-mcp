@@ -181,17 +181,12 @@ async function main() {
     console.error("Server running on stdio transport.");
 }
 
-// Only start the server if run directly (not if imported by Smithery analyzer)
-let isMainModule = false;
-try {
-    if (import.meta && import.meta.url) {
-        isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
-    }
-} catch (e) {
-    // Ignore in CJS environments
-}
+// Detect if the Smithery.ai diagnostic scanner is trying to evaluate the file
+const isSmitheryScanning = process.argv.some(arg =>
+    typeof arg === 'string' && arg.includes('.smithery') && arg.includes('scan')
+);
 
-if (isMainModule || process.env.NODE_ENV !== "test") {
-    // If we're not running in a test or static analysis environment, boot the server
+if (!isSmitheryScanning) {
+    // Standard execution natively or via NPX
     main().catch(console.error);
 }
