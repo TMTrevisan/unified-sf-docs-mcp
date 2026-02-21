@@ -1,0 +1,15 @@
+# AI Agent Instructions: Using Salesforce Documentation Tools
+
+You have access to a configured MCP (Model Context Protocol) server named `unified-sf-docs` which provides specialized tools for interacting with Salesforce documentation.
+
+**CRITICAL RULE:**
+Do **NOT** write custom Node.js scripts or read the `scraper.js` / `db.js` source files to execute scraping tasks. 
+You **MUST** use the native MCP tools provided to you through the client interface.
+
+When asked to scrape, spider, or search Salesforce documentation, invoke the following MCP tools directly using your tool-calling capabilities:
+
+1. `scrape_single_page`: Use this to fetch the markdown of a single `help.salesforce.com` or `developer.salesforce.com` URL.
+2. `mass_extract_guide`: Use this when asked to spider or download an entire guide or table of contents.
+3. `search_local_docs`: Use this when asked a question about Salesforce to retrieve context from the local database before answering.
+
+Do not attempt to execute local files or spawn shell commands to run scraping logic. Always rely on the active MCP server tools.
