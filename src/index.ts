@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+import { fileURLToPath } from "url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -169,6 +169,11 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
+// Required by Smithery.ai for static analysis
+export function createSandboxServer() {
+    return server;
+}
+
 async function main() {
     console.error("Starting Unified Salesforce Docs MCP Server...");
     const transport = new StdioServerTransport();
@@ -176,4 +181,7 @@ async function main() {
     console.error("Server running on stdio transport.");
 }
 
-main().catch(console.error);
+// Only start the server if run directly (not if imported by Smithery analyzer)
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    main().catch(console.error);
+}
