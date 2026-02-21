@@ -4,10 +4,15 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Safe directory resolution for both native ESM and CJS bundlers (like Smithery)
+let _dirname;
+try {
+    _dirname = dirname(fileURLToPath(import.meta.url));
+} catch (e) {
+    _dirname = process.cwd();
+}
 
-const DATA_DIR = join(__dirname, "..", "..", "db");
+const DATA_DIR = join(_dirname, "..", "db");
 const DB_PATH = join(DATA_DIR, "salesforce-docs.db");
 
 let db: any = null;
