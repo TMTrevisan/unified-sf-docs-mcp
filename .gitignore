@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Debug files
+*.log
+*.png
+dump*
+debug*
+
+# Environment
+.env
+.DS_Store
