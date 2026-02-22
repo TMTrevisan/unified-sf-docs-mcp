@@ -7,7 +7,7 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { scrapePage, closeBrowser } from "./scraper.js";
-import { saveDocument, searchDocuments } from "./db.js";
+import { saveDocument, searchDocuments, getDatabase } from "./db.js";
 import { z } from "zod";
 
 const server = new Server(
@@ -164,12 +164,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const results = await searchDocuments(query, maxResults);
 
             if (results.length === 0) {
-                return {
-                    content: [{
-                        type: "text",
-                        text: "No results found in the local database.\n\nNote: If this is a new installation, your local database is currently empty. You must run the `mass_extract_guide` tool on a Salesforce category URL first to index the documentation locally."
-                    }]
-                };
+                const database = await getDatabase();
+                const countStmt = database.prepare('SELECT COUNT(*) FROM documents');
+                countStmt.step();
+                const rowCount = countStmt.get()[0] as number;
+                countStmt.free();
+
+                if (rowCount === 0) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: "No results found in the local database.\n\nNote: If this is a new installation, your local database is currently empty. You must run the `mass_extract_guide` tool on a Salesforce category URL first to index the documentation locally."
+                        }]
+                    };
+                } else {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: `No matching documentation found for "${query}". Try different or fewer keywords.`
+                        }]
+                    };
+                }
             }
 
             let output = `# Search Results for "${query}"\n\n`;

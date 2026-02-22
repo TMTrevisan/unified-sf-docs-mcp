@@ -135,7 +135,7 @@ function splitIntoChunks(text: string, maxLen: number): string[] {
 export async function searchDocuments(query: string, maxResults: number = 5) {
     const database = await getDatabase();
     const queryLower = query.toLowerCase();
-    const searchTerms = queryLower.split(/\\s+/).filter(w => w.length > 2);
+    const searchTerms = queryLower.split(/\s+/).filter(w => w.length > 2);
 
     if (searchTerms.length === 0) return [];
 
