@@ -112,6 +112,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const queue = [...new Set(rootResult.childLinks)].filter(l => l !== rootUrl).slice(0, maxPages);
             let successRaw = 1;
             let failureCount = 0;
+            const successfulUrls: string[] = [rootUrl];
+            const failedUrls: string[] = [];
 
             for (const link of queue) {
                 console.error(`Scraping queued link: ${link}`);
@@ -119,14 +121,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 if (!pg.error) {
                     await saveDocument(pg.url, pg.title, pg.markdown, pg.hash, category);
                     successRaw++;
+                    successfulUrls.push(pg.url);
                 } else {
                     console.error(`Failed on ${link}: ${pg.error}`);
                     failureCount++;
+                    failedUrls.push(link);
                 }
             }
 
+            let outputText = `Mass extraction complete.\nSuccessfully extracted and saved ${successRaw} pages:\n`;
+            for (const u of successfulUrls) {
+                outputText += `- ${u}\n`;
+            }
+            if (failureCount > 0) {
+                outputText += `\nFailed to extract ${failureCount} pages:\n`;
+                for (const u of failedUrls) {
+                    outputText += `- ${u}\n`;
+                }
+            }
+            outputText += `\nDatabase updated.`;
+
             return {
-                content: [{ type: "text", text: `Mass extraction complete.\nSuccessfully extracted and saved ${successRaw} pages.\nFailed: ${failureCount} pages.\nDatabase updated.` }]
+                content: [{ type: "text", text: outputText }]
             };
         }
 
