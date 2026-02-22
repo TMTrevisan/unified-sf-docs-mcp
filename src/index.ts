@@ -7,7 +7,7 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { scrapePage, closeBrowser } from "./scraper.js";
-import { saveDocument, searchDocuments, getDatabase } from "./db.js";
+import { saveDocument, searchDocuments, getDatabase, getDocumentByUrl } from "./db.js";
 import { z } from "zod";
 
 const server = new Server(
@@ -30,6 +30,10 @@ const MassExtractSchema = z.object({
 const SearchDocsSchema = z.object({
     query: z.string().min(1).max(500),
     maxResults: z.number().int().min(1).max(20).optional().default(5)
+});
+
+const ReadDocumentSchema = z.object({
+    url: z.string().url()
 });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -71,6 +75,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         maxResults: { type: "number" }
                     },
                     required: ["query"]
+                }
+            },
+            {
+                name: "read_local_document",
+                description: "Read the full markdown content of a Salesforce documentation page that has already been extracted into the local SQLite database.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        url: { type: "string", description: "The exact URL of the document to read, obtained from search_local_docs or mass_extract_guide" }
+                    },
+                    required: ["url"]
                 }
             }
         ]
@@ -194,6 +209,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
 
             return { content: [{ type: "text", text: output }] };
+        }
+
+        if (name === "read_local_document") {
+            const { url } = ReadDocumentSchema.parse(args);
+            const doc = await getDocumentByUrl(url);
+
+            if (!doc) {
+                return {
+                    content: [{ type: "text", text: `Document not found in local database: ${url}. You may need to run scrape_single_page instead.` }]
+                };
+            }
+
+            return {
+                content: [{ type: "text", text: `# ${doc.title}\n\n${doc.markdown}` }]
+            };
         }
 
         return {

@@ -229,3 +229,33 @@ export async function searchDocuments(query: string, maxResults: number = 5) {
 
     return scoredDocs.slice(0, maxResults);
 }
+
+export async function getDocumentByUrl(url: string) {
+    const database = await getDatabase();
+
+    const docStmt = database.prepare('SELECT id, title FROM documents WHERE url = ?');
+    docStmt.bind([url]);
+
+    let docId = null;
+    let title = null;
+    if (docStmt.step()) {
+        const row = docStmt.get();
+        docId = row[0];
+        title = row[1];
+    }
+    docStmt.free();
+
+    if (!docId) return null;
+
+    const chunkStmt = database.prepare('SELECT content FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC');
+    chunkStmt.bind([docId]);
+
+    let markdown = '';
+    while (chunkStmt.step()) {
+        const row = chunkStmt.get();
+        markdown += row[0] + '\n\n';
+    }
+    chunkStmt.free();
+
+    return { title, markdown: markdown.trim() };
+}
