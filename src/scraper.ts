@@ -56,7 +56,19 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
         await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
         // Wait until network is idle specifically to handle SPA renders and iframe loads
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+        const response = await page.goto(url, { waitUntil: 'networkidle0', timeout: 60000 });
+
+        // BUG-04 check: If the page returns an HTTP error code natively, fail fast.
+        if (response && !response.ok()) {
+            return {
+                url,
+                title: 'Error',
+                markdown: '',
+                hash: '',
+                error: `HTTP Error ${response.status()}: ${response.statusText()}`,
+                childLinks: []
+            };
+        }
 
         // Wait for specific Salesforce content locators to appear to avoid grabbing 'Loading...' pages
         try {
@@ -93,6 +105,26 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                     childLinks.add(a.href);
                 }
             });
+
+            // BUG-04: Catch soft 404s rendered by the SPA
+            const pageTitle = document.querySelector('title')?.innerText || '';
+            if (pageTitle.includes('404 Error')) {
+                return { html: '', title: 'Error', error: 'HTTP 404 - Page Not Found', childLinks: Array.from(childLinks) };
+            }
+
+            // BUG-01 & BUG-02: Catch SPA shells that failed to load content BEFORE generic tag fallbacks
+            const bodyHtml = document.body.innerHTML;
+            const isHelpSite = window.location.hostname.includes('help.salesforce.com');
+
+            if (bodyHtml.includes('Sorry to interrupt') || (isHelpSite && bodyHtml.length > 100000)) {
+                return {
+                    html: '',
+                    title: 'Error',
+                    error: 'Found no accessible documentation content on this page. It may require authentication, be a soft 404, or rendering timed out.',
+                    childLinks: []
+                };
+            }
+
 
             // Helper function to extract readable HTML piercing shadow DOMs (legacy sf-doc-scraper behavior)
             function extractReadableHTML(element: Element): string {
@@ -242,9 +274,21 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                 return { html: container.innerHTML, title, childLinks: Array.from(childLinks) };
             }
 
-            // Complete fallback
+            // Complete fallback - BUG-01 & BUG-02
+            // If we fall all the way down here, it means no documentation tags were found. 
+            // If the body is massive, it is almost certainly a JS application shell (like help.salesforce)
+            // or a 404 rendered in SPA mode. Do not dump 250kb of useless code to the AI.
+
+            if (isHelpSite || bodyHtml.length > 100000) {
+                return {
+                    html: '',
+                    title: 'Error. Found no accessible documentation content on this page. It may require authentication, be a 404, or rendering timed out.',
+                    childLinks: []
+                };
+            }
+
             return {
-                html: document.body.innerHTML,
+                html: bodyHtml,
                 title: document.querySelector('title')?.innerText || 'Untitled',
                 childLinks: Array.from(childLinks)
             };
@@ -253,11 +297,11 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
         if (!extraction.html || extraction.html.trim() === '') {
             return {
                 url,
-                title: 'Untitled',
+                title: extraction.title || 'Untitled',
                 markdown: '',
                 hash: '',
-                error: 'No content found on page',
-                childLinks: []
+                error: (extraction as any).error || 'No content found on page',
+                childLinks: extraction.childLinks || []
             };
         }
 

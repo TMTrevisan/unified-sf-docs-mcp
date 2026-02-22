@@ -135,7 +135,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             const results = await searchDocuments(query, maxResults);
 
             if (results.length === 0) {
-                return { content: [{ type: "text", text: "No results found in the local database." }] };
+                return {
+                    content: [{
+                        type: "text",
+                        text: "No results found in the local database.\n\nNote: If this is a new installation, your local database is currently empty. You must run the `mass_extract_guide` tool on a Salesforce category URL first to index the documentation locally."
+                    }]
+                };
             }
 
             let output = `# Search Results for "${query}"\n\n`;
