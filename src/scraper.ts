@@ -120,7 +120,7 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                 return {
                     html: '',
                     title: 'Error',
-                    error: 'Found no accessible documentation content on this page. It may require authentication, be a soft 404, or rendering timed out.',
+                    error: 'Found no accessible documentation content on this page. It may require authentication, be a soft 404, rendering timed out, or JavaScript rendering is required.',
                     childLinks: []
                 };
             }
@@ -282,7 +282,7 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
             if (isHelpSite || bodyHtml.length > 100000) {
                 return {
                     html: '',
-                    title: 'Error. Found no accessible documentation content on this page. It may require authentication, be a 404, or rendering timed out.',
+                    title: 'Error. Found no accessible documentation content on this page. It may require authentication, be a soft 404, rendering timed out, or JavaScript rendering is required.',
                     childLinks: []
                 };
             }
