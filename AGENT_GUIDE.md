@@ -3,13 +3,14 @@
 This document provides rules and best practices for AI agents (like Cursor, Claude, or DevBots) interacting with the `unified-sf-docs` MCP Server.
 
 ## Overview
-The Unified SF Docs MCP Server provides three tools:
+The Unified SF Docs MCP Server provides four tools:
 
 | Tool | Purpose |
 |------|---------|
 | `search_local_docs` | Instantly search an offline SQLite database of pre-scraped documentation |
 | `scrape_single_page` | Extract a specific page's content as Markdown, automatically bypassing Shadow DOMs |
 | `mass_extract_guide` | Recursively spider a guide's Table of Contents and index all child pages into the local DB |
+| `read_local_document` | Return the full markdown for a previously indexed documentation URL without re-scraping |
 
 ---
 

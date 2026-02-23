@@ -61,7 +61,7 @@ The absolute easiest way to do this is to use `npx`, which will automatically do
    - **Type**: `command`
    - **Name**: `unified-sf-docs`
    - **Command**: `npx -y unified-sf-docs-mcp`
-4. Click Save. Cursor will instantly download the package and surface the 3 new tools to the Cursor Agent.
+4. Click Save. Cursor will instantly download the package and surface the 4 new tools to the Cursor Agent.
 
 ### 2. Claude Desktop
 
