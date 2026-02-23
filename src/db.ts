@@ -94,7 +94,10 @@ export async function saveDocument(url: string, title: string, markdown: string,
     if (existingId) {
         // Delete old chunks
         database.run('DELETE FROM chunks WHERE document_id = ?', [existingId]);
-        database.run('UPDATE documents SET title = ?, hash = ?, last_scraped = CURRENT_TIMESTAMP WHERE id = ?', [title, hash, existingId]);
+        database.run(
+            'UPDATE documents SET title = ?, hash = ?, category = ?, last_scraped = CURRENT_TIMESTAMP WHERE id = ?',
+            [title, hash, category, existingId]
+        );
     } else {
         database.run('INSERT INTO documents (url, title, hash, category) VALUES (?, ?, ?, ?)', [url, title, hash, category]);
         const res = database.exec('SELECT last_insert_rowid()');
@@ -117,7 +120,7 @@ export async function saveDocument(url: string, title: string, markdown: string,
 
 function splitIntoChunks(text: string, maxLen: number): string[] {
     const chunks: string[] = [];
-    const paragraphs = text.split('\\n\\n');
+    const paragraphs = text.split('\n\n');
     let currentChunk = '';
 
     for (const p of paragraphs) {
