@@ -262,3 +262,73 @@ export async function getDocumentByUrl(url: string) {
 
     return { title, markdown: markdown.trim() };
 }
+
+export async function exportLocalDocuments(outputPath: string, urlPrefix?: string, category?: string) {
+    const database = await getDatabase();
+
+    let query = 'SELECT d.id, d.title, d.url FROM documents d';
+    const conditions = [];
+    const params = [];
+
+    if (urlPrefix) {
+        conditions.push('d.url LIKE ?');
+        params.push(`${urlPrefix}%`);
+    }
+
+    if (category) {
+        conditions.push('d.category = ?');
+        params.push(category);
+    }
+
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY d.url ASC';
+
+    const docStmt = database.prepare(query);
+    docStmt.bind(params);
+
+    const documents = [];
+    while (docStmt.step()) {
+        const row = docStmt.get();
+        documents.push({ id: row[0], title: row[1], url: row[2] });
+    }
+    docStmt.free();
+
+    if (documents.length === 0) {
+        return { success: false, count: 0, message: "No documents matched the provided filters." };
+    }
+
+    let combinedMarkdown = `# Filtered Export (${documents.length} pages)\n\n`;
+    if (urlPrefix) combinedMarkdown += `**URL Prefix:** \`${urlPrefix}\`\n`;
+    if (category) combinedMarkdown += `**Category:** \`${category}\`\n`;
+    combinedMarkdown += `---\n\n`;
+
+    // Extract chunks for each matched document
+    for (const doc of documents) {
+        const chunkStmt = database.prepare('SELECT content FROM chunks WHERE document_id = ? ORDER BY chunk_index ASC');
+        chunkStmt.bind([doc.id]);
+
+        let markdown = '';
+        while (chunkStmt.step()) {
+            const row = chunkStmt.get();
+            markdown += row[0] + '\n\n';
+        }
+        chunkStmt.free();
+
+        // Append to the giant file
+        combinedMarkdown += `# ${doc.title}\n`;
+        combinedMarkdown += `**Source:** [${doc.url}](${doc.url})\n\n`;
+        combinedMarkdown += `${markdown.trim()}\n\n---\n\n`;
+    }
+
+    // Write directly to user's disk
+    writeFileSync(outputPath, combinedMarkdown, { encoding: 'utf-8' });
+
+    return {
+        success: true,
+        count: documents.length,
+        message: `Successfully exported ${documents.length} documents to ${outputPath}`
+    };
+}

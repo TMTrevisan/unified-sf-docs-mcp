@@ -1,0 +1,84 @@
+{
+  "payload": {
+    "type": "hosted",
+    "stateful": false,
+    "hasAuthAdapter": false,
+    "serverCard": {
+      "serverInfo": {
+        "name": "unified-sf-docs-mcp",
+        "version": "1.0.0"
+      },
+      "tools": [
+        {
+          "name": "scrape_single_page",
+          "description": "Scrape a single Salesforce documentation page (handles both developer.salesforce and help.salesforce iframes/structures). Returns markdown.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ]
+          }
+        },
+        {
+          "name": "mass_extract_guide",
+          "description": "Spiders a root Salesforce documentation page, extracts hierarchical links, and scrapes them in bulk. Stores contents in a local SQLite database for later searching.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "rootUrl": {
+                "type": "string",
+                "description": "The Table of Contents or landing page."
+              },
+              "maxPages": {
+                "type": "number",
+                "description": "Maximum number of pages to extract (default 20, max 100)."
+              },
+              "category": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "rootUrl"
+            ]
+          }
+        },
+        {
+          "name": "search_local_docs",
+          "description": "Search locally extracted Salesforce documentation in the SQLite database.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "maxResults": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "query"
+            ]
+          }
+        }
+      ],
+      "resources": [],
+      "prompts": []
+    },
+    "source": {
+      "commit": "796f8e790ac04e6481f3464d45ff90e0cf40607d",
+      "branch": "main"
+    }
+  },
+  "artifacts": {
+    "module": "module.js",
+    "sourcemap": "module.js.map"
+  }
+}

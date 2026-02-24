@@ -11,6 +11,7 @@ The Unified SF Docs MCP Server provides four tools:
 | `scrape_single_page` | Extract a specific page's content as Markdown, automatically bypassing Shadow DOMs |
 | `mass_extract_guide` | Recursively spider a guide's Table of Contents and index all child pages into the local DB |
 | `read_local_document` | Return the full markdown for a previously indexed documentation URL without re-scraping |
+| `export_local_documents` | Safely concatenate and dump all matching SQLite guides directly to a `.md` file on the hard drive |
 
 ---
 
@@ -58,3 +59,10 @@ The `unified-sf-docs-mcp` package contains source files like `scraper.js` and `d
 1. Note that this is a large, new domain.
 2. `mass_extract_guide({ rootUrl: "[URL]", maxPages: 50, category: "Health Cloud" })`
 3. Acknowledge that the guide has been indexed and is ready for offline querying.
+
+### Scenario 4: Exporting a Full Developer Guide
+**User:** "Can you export the entire Health Cloud guide into a markdown file on my Desktop?"
+**Agent Action:**
+1. Do *not* attempt to write a Python or Bash script to query SQLite and write to the filesystem.
+2. Call `export_local_documents({ outputPath: "/Users/username/Desktop/health-cloud-guide.md", category: "Health Cloud" })`.
+3. Inform the user that the guide was successfully dumped to their machine.

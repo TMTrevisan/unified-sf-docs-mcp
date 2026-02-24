@@ -7,7 +7,7 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { scrapePage, closeBrowser } from "./scraper.js";
-import { saveDocument, searchDocuments, getDatabase, getDocumentByUrl } from "./db.js";
+import { saveDocument, searchDocuments, getDatabase, getDocumentByUrl, exportLocalDocuments } from "./db.js";
 import { z } from "zod";
 
 const server = new Server(
@@ -34,6 +34,12 @@ const SearchDocsSchema = z.object({
 
 const ReadDocumentSchema = z.object({
     url: z.string().url()
+});
+
+const ExportDocsSchema = z.object({
+    outputPath: z.string().describe("The absolute path on your local machine to save the compiled Markdown file (e.g. /Users/name/Desktop/guide.md)"),
+    urlPrefix: z.string().optional().describe("Optional. Only export documents whose URL starts with this string. Useful for clustering sections of a guide."),
+    category: z.string().optional().describe("Optional. Only export documents tagged with this category.")
 });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -86,6 +92,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         url: { type: "string", description: "The exact URL of the document to read, obtained from search_local_docs or mass_extract_guide" }
                     },
                     required: ["url"]
+                }
+            },
+            {
+                name: "export_local_documents",
+                description: "Export all matching offline documentation pages concatenated into a single Markdown file on your local machine.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        outputPath: { type: "string", description: "Absolute file path to save the .md file." },
+                        urlPrefix: { type: "string", description: "Filter to URLs starting with this." },
+                        category: { type: "string", description: "Filter by category." }
+                    },
+                    required: ["outputPath"]
                 }
             }
         ]
@@ -223,6 +242,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             return {
                 content: [{ type: "text", text: `# ${doc.title}\n\n${doc.markdown}` }]
+            };
+        }
+
+        if (name === "export_local_documents") {
+            const { outputPath, urlPrefix, category } = ExportDocsSchema.parse(args);
+            console.error(`Exporting documents to ${outputPath}...`);
+            const exportResult = await exportLocalDocuments(outputPath, urlPrefix, category);
+
+            if (!exportResult.success) {
+                return { content: [{ type: "text", text: `Export Failed: ${exportResult.message}` }], isError: true };
+            }
+
+            return {
+                content: [{ type: "text", text: exportResult.message }]
             };
         }
 

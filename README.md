@@ -14,6 +14,7 @@ A powerful Model Context Protocol (MCP) server that empowers LLMs to scrape, dig
 2.  **`mass_extract_guide`**: Provide a "Table of Contents" or central guide URL. The server will extract the parent page, find all hierarchical child links, scrape them concurrently, chunk their content, and save them to a local SQLite database for offline querying.
 3.  **`search_local_docs`**: Provide a natural language query (e.g., `LWC lifecycle hooks`). The server queries the SQLite database using fuzzy SQL search to instantly return the best matching pre-scraped chunks of documentation.
 4.  **`read_local_document`**: Rapidly extracts the full Markdown content of a documentation page that has already been indexed locally, instantly returning the content without needing to re-run headless Chromium to bypass CDNs.
+5.  **`export_local_documents`**: Safely compile an entire guide (or multiple guides) stored in the offline SQLite database into a massive concatenated Markdown file exported directly to your local file system, without saturating LLM context windows or writing complex CLI scripts.
 
 ## Quick Start Installation
 
