@@ -16,39 +16,7 @@ A powerful Model Context Protocol (MCP) server that empowers LLMs to scrape, dig
 4.  **`read_local_document`**: Rapidly extracts the full Markdown content of a documentation page that has already been indexed locally, instantly returning the content without needing to re-run headless Chromium to bypass CDNs.
 5.  **`export_local_documents`**: Safely compile an entire guide (or multiple guides) stored in the offline SQLite database into a massive concatenated Markdown file exported directly to your local file system, without saturating LLM context windows or writing complex CLI scripts.
 
-## Quick Start Installation
-
-For anyone downloading this project for the first time:
-
-1.  **Clone the Repository:**
-    ```bash
-    git clone https://github.com/tmtrevisan/unified-sf-docs-mcp.git
-    cd unified-sf-docs-mcp
-    ```
-2.  **Install Dependencies:**
-    ```bash
-    npm install
-    ```
-3.  **Build the Project:**
-    ```bash
-    npm run build
-    ```
-    *(Note: The server runs from the compiled `/dist` directory, so building is required).*
-*(Note: To use the tools interactively, integrate this MCP server with an MCP client like Claude Desktop or Cursor.)*
-
-## Testing
-
-You can use the provided test scripts to verify the core functionality or the scraper against different Salesforce URL layouts:
-
-```bash
-# Test the database, chunking, and search functionality
-npx tsx tests/test-core.js
-
-# Test the robust Shadow DOM scraper against 4 different URL permutations
-npx tsx tests/test-all.js
-```
-
-## Integrating with AI Assistants
+## Quick Start (Using with AI Assistants)
 
 MCP servers act as a bridge between an LLM and local tools. To actually use this server, you need to plug it into an AI coding assistant like **Cursor** or **Claude Desktop**. 
 
@@ -62,7 +30,7 @@ The absolute easiest way to do this is to use `npx`, which will automatically do
    - **Type**: `command`
    - **Name**: `unified-sf-docs`
    - **Command**: `npx -y unified-sf-docs-mcp`
-4. Click Save. Cursor will instantly download the package and surface the 4 new tools to the Cursor Agent.
+4. Click Save. Cursor will instantly download the package and surface the 5 new tools to the Cursor Agent.
 
 ### 2. Claude Desktop
 
@@ -88,7 +56,8 @@ The absolute easiest way to do this is to use `npx`, which will automatically do
 
 ---
 
-### Alternative: Running a Local Clone
+## Local Development & Testing
+
 If you want to modify the source code yourself, you can point your AI assistant to a local installation instead of using `npx`:
 
 1.  **Clone the Repository:**
@@ -100,6 +69,18 @@ If you want to modify the source code yourself, you can point your AI assistant 
     ```bash
     npm install && npm run build
     ```
+    *(Note: The server runs from the compiled `/dist` directory, so building is required).*
+
+You can use the provided test scripts to verify the core functionality or the scraper against different Salesforce URL layouts:
+
+```bash
+# Test the database, chunking, and search functionality
+npx tsx tests/test-core.js
+
+# Test the robust Shadow DOM scraper against 4 different URL permutations
+npx tsx tests/test-all.js
+```
+
 3.  **Update your MCP config:**
     - Type: `command`
     - Command: `node /ABSOLUTE/PATH/TO/unified-sf-docs-mcp/dist/index.js`
