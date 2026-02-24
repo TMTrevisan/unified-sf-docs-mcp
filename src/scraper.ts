@@ -44,9 +44,117 @@ async function getBrowser(): Promise<Browser> {
 }
 
 /**
+ * Attempt to extract article text directly from the undocumented Aura API to bypass Akamai bot detection.
+ */
+async function scrapeAuraArticle(urlStr: string, baseDomain?: string): Promise<ScrapedPage | null> {
+    try {
+        const url = new URL(urlStr);
+        const articleId = url.searchParams.get('id');
+
+        if (!articleId || !url.hostname.includes('help.salesforce.com') || !urlStr.includes('articleView')) {
+            return null;
+        }
+
+        const payload = {
+            "actions": [{
+                "id": "1;a",
+                "descriptor": "aura://ApexActionController/ACTION$execute",
+                "callingDescriptor": "UNKNOWN",
+                "params": {
+                    "namespace": "",
+                    "classname": "Help_ArticleDataController",
+                    "method": "getData",
+                    "params": {
+                        "articleParameters": {
+                            "urlName": articleId,
+                            "language": "en_US",
+                            "release": "260.0.0",
+                            "requestedArticleType": "HelpDocs",
+                            "requestedArticleTypeNumber": "5"
+                        }
+                    },
+                    "cacheable": false,
+                    "isContinuation": false
+                }
+            }]
+        };
+
+        const formData = new URLSearchParams();
+        formData.append('message', JSON.stringify(payload));
+        formData.append('aura.context', JSON.stringify({
+            "mode": "PROD",
+            "fwuid": "SHNaWGp5QlJqZFZLVGR5N0w0d0tYUTJEa1N5enhOU3R5QWl2VzNveFZTbGcxMy4tMjE0NzQ4MzY0OC45OTYxNDcy",
+            "app": "siteforce:communityApp"
+        }));
+        formData.append('aura.pageURI', url.pathname + url.search);
+        formData.append('aura.token', 'null');
+
+        const response = await fetch('https://help.salesforce.com/s/sfsites/aura', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*'
+            },
+            body: formData.toString()
+        });
+
+        if (!response.ok) return null;
+
+        const jsonText = await response.text();
+        const json = JSON.parse(jsonText);
+
+        const actionResult = json.actions?.[0]?.returnValue;
+        if (!actionResult || !actionResult.returnValue || !actionResult.returnValue.record) {
+            return null;
+        }
+
+        const record = actionResult.returnValue.record;
+        const htmlContent = record.Content__c || record.Summary;
+        const title = record.Title || 'Salesforce Help Article';
+
+        if (!htmlContent) return null;
+
+        const markdown = turndownService.turndown(htmlContent);
+
+        // Naive extraction of child links from HTML
+        const childLinksMatch = [...htmlContent.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
+        const cleanChildLinks = Array.from(new Set(
+            childLinksMatch
+                .filter(u => !u.startsWith('#') && !u.startsWith('java') && !u.startsWith('mailto'))
+                .map(u => {
+                    if (u.startsWith('http')) return u;
+                    if (u.startsWith('/')) return `https://help.salesforce.com${u}`;
+                    return `https://help.salesforce.com/s/${u}`;
+                })
+                .filter(u => !baseDomain || u.includes(baseDomain))
+        ));
+
+        const hash = crypto.createHash('md5').update(markdown).digest('hex');
+
+        return {
+            url: urlStr,
+            title,
+            markdown,
+            hash,
+            childLinks: cleanChildLinks
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
  * Extracts content from a single URL, handling shadow DOMs, iframes, and various SFDC template structures.
  */
 export async function scrapePage(url: string, baseDomain?: string): Promise<ScrapedPage> {
+    // 1. Aura SPA Fast-Path directly hitting the backend Salesforce APIs
+    const auraResult = await scrapeAuraArticle(url, baseDomain);
+    if (auraResult) {
+        return auraResult;
+    }
+
+    // 2. Headless Chrome Fallback for everything else (LWC, Standard Web, etc.)
     const browserInstance = await getBrowser();
     const page = await browserInstance.newPage();
 
