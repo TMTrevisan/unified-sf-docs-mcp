@@ -5,6 +5,9 @@ import TurndownService from 'turndown';
 // @ts-ignore
 import { gfm } from 'turndown-plugin-gfm';
 import crypto from 'crypto';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdf = require('pdf-parse');
 
 // Configure Turndown for better markdown output
 const turndownService = new TurndownService({
@@ -163,6 +166,48 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
     const auraResult = await scrapeAuraArticle(url, baseDomain);
     if (auraResult) {
         return auraResult;
+    }
+
+    // 1.5 Native PDF Extraction
+    if (url.toLowerCase().endsWith('.pdf')) {
+        try {
+            console.log(`[PDF Extraction] Downloading ${url}...`);
+            const pdfResponse = await fetch(url);
+            if (!pdfResponse.ok) {
+                return {
+                    url,
+                    title: 'Error',
+                    markdown: '',
+                    hash: '',
+                    error: `PDF HTTP Error ${pdfResponse.status}: ${pdfResponse.statusText}`,
+                    childLinks: []
+                };
+            }
+            const buffer = await pdfResponse.arrayBuffer();
+            const data = await pdf(Buffer.from(buffer));
+
+            // Generate a simple markdown representation
+            const title = url.split('/').pop() || 'PDF Document';
+            const markdown = `# ${title}\n\n${data.text}`;
+            const hash = crypto.createHash('sha256').update(markdown).digest('hex');
+
+            return {
+                url,
+                title,
+                markdown,
+                hash,
+                childLinks: [] // PDFs don't typically yield crawlable HTML links natively this way
+            };
+        } catch (e: any) {
+            return {
+                url,
+                title: 'Error',
+                markdown: '',
+                hash: '',
+                error: `PDF Parse Error: ${e.message}`,
+                childLinks: []
+            };
+        }
     }
 
     // 2. Headless Chrome Fallback for everything else (LWC, Standard Web, etc.)
