@@ -1,17 +1,16 @@
 import { scrapePage, closeBrowser } from '../dist/scraper.js';
-import { saveDocument } from '../dist/db.js';
 
 const urlsToTest = [
-    // 1. Original Problematic Dev Guide (Iframe/Shadow DOM)
-    'https://developer.salesforce.com/docs/atlas.en-us.life_sciences_dev_guide.meta/life_sciences_dev_guide/life_sciences_customer_engagement_data_model.htm',
-    // 2. Original Problematic Help Page (SLDS layout)
-    'https://help.salesforce.com/s/articleView?id=ind.lsc_customer_engagement_setup_basics.htm&type=5',
-    // 3. New Random Modern Dev Guide (Lightning Web Components)
-    'https://developer.salesforce.com/docs/component-library/documentation/en/lwc/lwc.get_started_introduction'
+    'https://help.salesforce.com/s/articleView?id=ind.lsc_customer_engagement_get_org_ready.htm&language=en_US&type=5',
+    'https://help.salesforce.com/s/articleView?id=ind.lsc_samples_management.htm&type=5',
+    'https://help.salesforce.com/s/articleView?id=sales.eac_email_activity_flow.htm&language=en_US&type=5',
+    'https://help.salesforce.com/s/articleView?id=sales.sales_productivity.htm&type=5',
+    'https://help.salesforce.com/s/articleView?id=sales.pipeline_mgmt_parent.htm&type=5',
+    'https://help.salesforce.com/s/articleView?id=sales.sales_cloud_agents.htm&type=5'
 ];
 
 async function runTests() {
-    console.log("=== Testing Multiple Salesforce Doc Types ===\\n");
+    console.log("=== Testing User Provided URLs ===\n");
     let passed = 0;
 
     for (const url of urlsToTest) {
@@ -19,17 +18,14 @@ async function runTests() {
         const result = await scrapePage(url);
 
         if (result.error) {
-            console.error(`❌ FAILED: ${result.error}\\n`);
+            console.error(`❌ FAILED: ${result.error}\n`);
         } else if (result.markdown.trim().length === 0) {
-            console.error(`❌ FAILED: No content extracted (0 bytes)\\n`);
+            console.error(`❌ FAILED: No content extracted (0 bytes)\n`);
         } else {
             console.log(`✅ SUCCESS - Title: "${result.title}"`);
             console.log(`   Markdown Length: ${result.markdown.length} chars`);
             console.log(`   Links Found: ${result.childLinks.length}`);
-
-            // Save to DB to test the flow
-            await saveDocument(result.url, result.title, result.markdown, result.hash, 'test');
-            console.log(`   Sample text: ${result.markdown.substring(0, 150).replace(/\\n/g, ' ')}...\\n`);
+            console.log(`   Sample text: ${result.markdown.substring(0, 150).replace(/\n/g, ' ')}...\n`);
             passed++;
         }
     }

@@ -1,6 +1,6 @@
 {
   "name": "unified-sf-docs-mcp",
-  "version": "1.1.13",
+  "version": "1.1.14",
   "description": "Unified MCP server for scraping Salesforce developer documentation and searching a local SQLite vector-like database.",
   "type": "module",
   "main": "dist/index.js",
@@ -30,11 +30,13 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "lru-cache": "^10.0.0",
     "puppeteer": "^24.1.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sql.js": "^1.10.0",
     "turndown": "^7.2.0",
     "turndown-plugin-gfm": "^1.0.2",
-    "sql.js": "^1.10.0",
-    "lru-cache": "^10.0.0",
     "zod": "^3.22.0"
   },
   "devDependencies": {

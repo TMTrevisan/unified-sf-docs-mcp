@@ -5,6 +5,7 @@ A powerful Model Context Protocol (MCP) server that empowers LLMs to scrape, dig
 ## Features
 
 -   **Deep Shadow DOM Piercing:** Bypasses 400KB+ of SPA boilerplate on `help.salesforce.com` and `developer.salesforce.com` to extract only the pure article Markdown.
+-   **Bot-Protection Bypass:** Includes a Stealth Architecture that transparently evades Akamai Bot Manager and other WAFs while perfectly executing Lightning Web Components to hydrate SPAs before extraction.
 -   **Hierarchical Spidering:** Automatically queues and scrapes all related pages linked from a central guide using `mass_extract_guide`.
 -   **Offline RAG Capabilities:** Chunks and indexes scraped Markdown into a local SQLite database (`docs.db`) allowing for instantaneous local search using `search_local_docs`.
 

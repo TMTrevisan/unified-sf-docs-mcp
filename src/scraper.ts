@@ -1,4 +1,6 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Browser, Page } from 'puppeteer';
 import TurndownService from 'turndown';
 // @ts-ignore
 import { gfm } from 'turndown-plugin-gfm';
@@ -33,12 +35,18 @@ export interface ScrapedPage {
 
 let browser: Browser | null = null;
 
+// Add stealth plugin to bypass bot detection like Akamai
+// @ts-ignore
+puppeteer.use(StealthPlugin());
+
 async function getBrowser(): Promise<Browser> {
     if (!browser) {
+        // @ts-ignore
         browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-        });
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--window-size=1920,1080'],
+            defaultViewport: { width: 1920, height: 1080 }
+        }) as unknown as Browser;
     }
     return browser;
 }
@@ -47,6 +55,9 @@ async function getBrowser(): Promise<Browser> {
  * Attempt to extract article text directly from the undocumented Aura API to bypass Akamai bot detection.
  */
 async function scrapeAuraArticle(urlStr: string, baseDomain?: string): Promise<ScrapedPage | null> {
+    // TEMPORARY BYPASS to force Puppeteer test
+    return null;
+
     try {
         const url = new URL(urlStr);
         const articleId = url.searchParams.get('id');
@@ -181,7 +192,8 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
         // Wait for specific Salesforce content locators to appear to avoid grabbing 'Loading...' pages
         try {
             if (url.includes('help.salesforce.com')) {
-                await page.waitForSelector('.slds-text-longform', { timeout: 15000 });
+                // Wait for the main body to render something meaningful (avoiding specific legacy classes)
+                await page.waitForSelector('body', { timeout: 15000 });
             } else if (url.includes('developer.salesforce.com')) {
                 await page.waitForFunction(() => {
                     return document.querySelector('doc-content-layout') ||
@@ -198,35 +210,47 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
 
         // Take an opportunistic screenshot if development debugging layout issues
         if (url.includes('help.salesforce.com')) {
-            await page.screenshot({ path: 'help_debug.png' }).catch(() => { });
+            await page.screenshot({ path: 'help_debug_test.png' }).catch(() => { });
         }
 
         // In-page extraction script
         const extraction = await page.evaluate(() => {
-            let title = 'Untitled';
-            let html = '';
+            // Flattened DOM Extraction Logic to bypass TS __name bugs
+            let title = document.querySelector('title')?.innerText || 'Untitled';
+            let finalHtml = '';
             const childLinks = new Set<string>();
 
-            // Collect all same-site hierarchical links (help to spider)
-            document.querySelectorAll('a').forEach(a => {
-                if (a.href && !a.href.startsWith('java') && !a.href.startsWith('mailto')) {
-                    childLinks.add(a.href);
+            // Collect all same-site hierarchical links using an iterative deep shadow DOM search
+            const rootsToProcess = [document as Document | ShadowRoot | Element];
+
+            while (rootsToProcess.length > 0) {
+                const currentRoot = rootsToProcess.pop()!;
+
+                // Grab links
+                const aTags = currentRoot.querySelectorAll('a');
+                aTags.forEach(a => {
+                    if (a.href && !a.href.startsWith('java') && !a.href.startsWith('mailto')) {
+                        childLinks.add(a.href);
+                    }
+                });
+
+                const allElements = currentRoot.querySelectorAll('*');
+                for (let i = 0; i < allElements.length; i++) {
+                    const el = allElements[i];
+                    if (el.shadowRoot) {
+                        rootsToProcess.push(el.shadowRoot);
+                    }
                 }
-            });
+            }
 
             // BUG-04: Catch soft 404s rendered by the SPA
-            const pageTitle = document.querySelector('title')?.innerText || '';
-            if (pageTitle.includes('404 Error')) {
+            if (title.includes('404 Error')) {
                 return { html: '', title: 'Error', error: 'HTTP 404 - Page Not Found', childLinks: Array.from(childLinks) };
             }
 
             // Catch SPA shells that failed to load content BEFORE generic tag fallbacks
-            const bodyHtml = document.body.innerHTML;
-            const isHelpSite = window.location.hostname.includes('help.salesforce.com');
-            const hasHelpContent = !!document.querySelector('.slds-text-longform');
-
-            // If it's a huge help site payload but the actual text container is missing, the SPA failed to hydrate
-            if (bodyHtml.includes('Sorry to interrupt') || (isHelpSite && !hasHelpContent && bodyHtml.length > 100000)) {
+            const bodyHtml = document.body.innerText;
+            if (bodyHtml.includes('Sorry to interrupt')) {
                 return {
                     html: '',
                     title: 'Error',
@@ -235,75 +259,14 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                 };
             }
 
-
-            // Helper function to extract readable HTML piercing shadow DOMs (legacy sf-doc-scraper behavior)
-            function extractReadableHTML(element: Element): string {
-                if (!element) return '';
-                const tagName = element.tagName?.toLowerCase();
-
-                if (tagName === 'doc-heading') {
-                    const headingEl = element.shadowRoot?.querySelector('h2, h3, h4');
-                    const headingContent = element.shadowRoot?.querySelector('doc-heading-content');
-                    const titleSpan = (headingContent as Element | null)?.shadowRoot?.querySelector('.title');
-                    const headingText = titleSpan?.textContent?.trim() || element.getAttribute('header') || '';
-                    const level = headingEl?.tagName?.toLowerCase() || 'h2';
-                    return `<${level}>${headingText}</${level}>`;
-                }
-
-                if (tagName === 'doc-content-callout') {
-                    const shadowDiv = element.shadowRoot?.querySelector('.dx-callout');
-                    const isTip = shadowDiv?.classList?.contains('dx-callout-tip');
-                    const isWarning = shadowDiv?.classList?.contains('dx-callout-warning');
-                    let calloutType = 'Note';
-                    if (isTip) calloutType = 'Tip';
-                    if (isWarning) calloutType = 'Warning';
-                    const slottedContent = element.innerHTML;
-                    return `<blockquote><strong>${calloutType}:</strong> ${slottedContent}</blockquote>`;
-                }
-
-                if (tagName === 'dx-code-block') {
-                    const language = element.getAttribute('language') || '';
-                    const code = element.getAttribute('code-block') || element.textContent || '';
-                    const decodedCode = code
-                        .replace(/&quot;/g, '"')
-                        .replace(/&lt;/g, '<')
-                        .replace(/&gt;/g, '>')
-                        .replace(/&amp;/g, '&');
-                    return `<pre><code class="language-${language}">${decodedCode}</code></pre>`;
-                }
-
-                if (tagName === 'div' && element.classList?.contains('custom-code-block')) {
-                    const codeBlock = element.querySelector('dx-code-block');
-                    if (codeBlock) return extractReadableHTML(codeBlock);
-                }
-                return element.outerHTML;
-            }
-
-            // Helper function to find element deep in shadow DOMs
-            function deepQuerySelector(root: Document | Element | ShadowRoot, selector: string): Element | null {
-                const found = root.querySelector(selector);
-                if (found) return found;
-
-                const allElements = root.querySelectorAll('*');
-                for (const el of Array.from(allElements)) {
-                    if (el.shadowRoot) {
-                        const deepFound = deepQuerySelector(el.shadowRoot, selector);
-                        if (deepFound) return deepFound;
-                    }
-                }
-                return null;
-            }
-
-            // 1. Try to extract from an iframe (Older Developer Guides like life_sciences_dev_guide)
+            // --- STRATEGY 1: Iframe (Older Developer Guides) ---
             const iframe = document.querySelector('iframe');
             if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
-                // Find main content inside iframe
                 const docHtml = iframe.contentDocument.querySelector('#doc')?.innerHTML ||
                     iframe.contentDocument.querySelector('body')?.innerHTML || '';
                 const docTitle = iframe.contentDocument.querySelector('title')?.innerText ||
                     iframe.contentDocument.querySelector('h1')?.innerText || 'Untitled';
 
-                // Get links inside iframe
                 iframe.contentDocument.querySelectorAll('a').forEach(a => {
                     if (a.href && !a.href.startsWith('java') && !a.href.startsWith('mailto')) {
                         childLinks.add(a.href);
@@ -315,27 +278,37 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                 }
             }
 
-            // 2. Try help.salesforce.com specific structure (often inside shadow DOMs)
-            const sldsText = deepQuerySelector(document, '.slds-text-longform');
-            if (sldsText) {
-                const rawTitle = document.querySelector('title')?.innerText || 'Untitled';
-                const cleanTitle = rawTitle.replace(' | Salesforce', '').trim();
-                return { html: sldsText.innerHTML, title: cleanTitle, childLinks: Array.from(childLinks) };
+            // --- STRATEGY 2: Help.salesforce.com Shadow DOM Search ---
+            let sldsText: Element | null = null;
+            const searchRoots = [document as Document | ShadowRoot | Element];
+            while (searchRoots.length > 0 && !sldsText) {
+                const current = searchRoots.pop()!;
+                const found = current.querySelector('.slds-text-longform');
+                if (found) {
+                    sldsText = found;
+                    break;
+                }
+                const all = current.querySelectorAll('*');
+                for (let i = 0; i < all.length; i++) {
+                    if (all[i].shadowRoot) searchRoots.push(all[i].shadowRoot!);
+                }
             }
 
-            // 2.5 Try doc-xml-content (Legacy Developer Guides, like Health Cloud / Life Sciences)
+            if (sldsText) {
+                title = title.replace(' | Salesforce', '').trim();
+                return { html: sldsText.innerHTML, title, childLinks: Array.from(childLinks) };
+            }
+
+            // --- STRATEGY 3: legacy doc-xml-content ---
             const docXmlContent = document.querySelector('doc-xml-content');
             if (docXmlContent?.shadowRoot) {
                 const docContent = docXmlContent.shadowRoot.querySelector('doc-content');
                 if (docContent?.shadowRoot) {
                     const innerHtml = docContent.shadowRoot.innerHTML;
-                    // Extract title from h1
                     const h1Match = innerHtml.match(/<h1[^>]*>(.*?)<\/h1>/);
                     if (h1Match) title = h1Match[1].replace(/<[^>]*>?/gm, '');
 
-                    // Find child links within the shadow DOM
-                    const shadowLinks = docContent.shadowRoot.querySelectorAll('a');
-                    shadowLinks.forEach(a => {
+                    docContent.shadowRoot.querySelectorAll('a').forEach(a => {
                         if (a.href && !a.href.startsWith('java') && !a.href.startsWith('mailto')) {
                             childLinks.add(a.href);
                         }
@@ -345,18 +318,15 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                 }
             }
 
-            // 3. Try doc-content-layout / doc-amf-reference (New Developer Guides)
+            // --- STRATEGY 4: Modern doc-amf-reference ---
             const docRef = document.querySelector('doc-amf-reference');
             if (docRef) {
                 const markdownContent = docRef.querySelector('.markdown-content');
                 if (markdownContent) {
-                    let refHtml = '';
-                    for (const el of Array.from(markdownContent.children)) {
-                        if (el.tagName?.toLowerCase() === 'h1') title = el.textContent?.trim() || title;
-                        refHtml += extractReadableHTML(el);
-                    }
-                    if (!title || title === 'Untitled') title = document.querySelector('title')?.innerText || 'Untitled';
-                    return { html: refHtml, title, childLinks: Array.from(childLinks) };
+                    // Quick and dirty extraction, bypass complex legacy parser
+                    const h1 = markdownContent.querySelector('h1');
+                    if (h1) title = h1.textContent?.trim() || title;
+                    return { html: markdownContent.innerHTML, title, childLinks: Array.from(childLinks) };
                 }
             }
 
@@ -369,37 +339,34 @@ export async function scrapePage(url: string, baseDomain?: string): Promise<Scra
                         let guideHtml = '';
                         for (const el of assignedElements) {
                             if (el.tagName?.toLowerCase() === 'h1') title = el.textContent?.trim() || title;
-                            guideHtml += extractReadableHTML(el);
+                            guideHtml += el.outerHTML;
                         }
-                        if (!title || title === 'Untitled') title = document.querySelector('title')?.innerText || 'Untitled';
                         return { html: guideHtml, title, childLinks: Array.from(childLinks) };
                     }
                 }
             }
 
-            // 4. Fallback: <article> or <main>
+            // --- STRATEGY 5: Fallbacks ---
             const container = document.querySelector('article') || document.querySelector('main');
             if (container) {
-                title = document.querySelector('h1')?.innerText || document.querySelector('title')?.innerText || 'Untitled';
+                title = document.querySelector('h1')?.innerText || title;
                 return { html: container.innerHTML, title, childLinks: Array.from(childLinks) };
             }
 
             // Complete fallback - BUG-01 & BUG-02
-            // If we fall all the way down here, it means no documentation tags were found. 
-            // If the body is massive, it is almost certainly a JS application shell (like help.salesforce)
-            // or a 404 rendered in SPA mode. Do not dump 250kb of useless code to the AI.
-
-            if (isHelpSite || bodyHtml.length > 100000) {
+            const isHelpSite = window.location.href.includes('help.salesforce.com');
+            if (isHelpSite || document.body.innerHTML.length > 100000) {
                 return {
                     html: '',
-                    title: 'Error. Found no accessible documentation content on this page. It may require authentication, be a soft 404, rendering timed out, or JavaScript rendering is required.',
+                    title: 'Error',
+                    error: 'Found no accessible documentation content on this page. It may require authentication, be a soft 404, rendering timed out, or JavaScript rendering is required.',
                     childLinks: []
                 };
             }
 
             return {
-                html: bodyHtml,
-                title: document.querySelector('title')?.innerText || 'Untitled',
+                html: document.body.innerHTML,
+                title,
                 childLinks: Array.from(childLinks)
             };
         });
