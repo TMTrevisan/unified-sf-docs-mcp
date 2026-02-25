@@ -15,3 +15,4 @@ debug*
 # Environment
 .env
 .DS_Store
+LINKEDIN_POST.md
